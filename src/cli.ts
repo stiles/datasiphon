@@ -4,9 +4,9 @@ import { parseHarFile } from "./parse/har.js";
 import { parseCurlFile, parseCurlString } from "./parse/curl.js";
 import { rankRequests } from "./analyze.js";
 import { detectPagination } from "./pagination.js";
-import { analyzeBody } from "./detect.js";
 import { cleanHeaders, redactHeaders, saveRecipe, loadRecipe, type Recipe } from "./recipe.js";
 import { runHarvest } from "./harvest.js";
+import { probeRequest } from "./probe.js";
 import type { CapturedRequest, RankedRequest } from "./types.js";
 
 function basenameFromUrl(url: string): string {
@@ -55,34 +55,6 @@ function buildRecipe(
     output: { formats: ["csv", "sqlite"], basename: basenameFromUrl(request.url) },
   };
   return { recipe, secrets, envVars, paginationNote: note };
-}
-
-/**
- * Fetch a request's URL once to learn the response shape and pagination, then
- * return an enriched request (with response headers/body) plus the analysis.
- * Used when a HAR has no captured body, or when the user wants live detection.
- */
-async function probeRequest(
-  request: CapturedRequest,
-): Promise<{ request: CapturedRequest; rowsPath?: string; format?: "json" | "xml" | "html" }> {
-  const { kept } = cleanHeaders(request.headers);
-  const res = await fetch(request.url, { method: request.method, headers: kept });
-  const text = await res.text();
-  const respHeaders: Record<string, string> = {};
-  res.headers.forEach((v, k) => (respHeaders[k.toLowerCase()] = v));
-
-  const enriched: CapturedRequest = {
-    ...request,
-    response: {
-      status: res.status,
-      contentType: res.headers.get("content-type") ?? undefined,
-      headers: respHeaders,
-      bodyText: text,
-    },
-  };
-
-  const analysis = analyzeBody(text, res.headers.get("content-type") ?? "");
-  return { request: enriched, rowsPath: analysis?.rowsPath, format: analysis?.format };
 }
 
 const program = new Command();
@@ -173,6 +145,7 @@ program
       try {
         console.log(`Probing ${request.url} ...`);
         const probed = await probeRequest(request);
+        for (const note of probed.notes) console.log(`  ${note}`);
         request = probed.request;
         rowsPath = probed.rowsPath ?? rowsPath;
         format = probed.format;

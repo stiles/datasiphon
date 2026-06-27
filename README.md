@@ -74,6 +74,26 @@ npm run siphon -- init capture.har --pick 1 --probe
 `init` probes automatically when it has no record path and you haven't passed
 `--no-probe`. Probing only fetches GET requests.
 
+### When the endpoint is a config that points elsewhere
+
+Some sites serve a configuration object instead of the data: a chart or
+dashboard loads a small JSON file describing how to render, and that file names
+the real data file in a `dataUrl` (or `dataFileName`) field. CDC's COVE
+visualizations work this way.
+
+When `--probe` fetches a response like that and finds no record array of its
+own, it follows the `dataUrl` (resolving relative paths against the config URL)
+and builds the recipe from the file that actually holds the records:
+
+```bash
+npm run siphon -- init cdc-config.curl --probe
+# Probing https://www.cdc.gov/measles/weekly-cases-chart.json ...
+#   config response points elsewhere; following dataUrl to .../MeaslesCasesWeekly.json
+# source: GET https://www.cdc.gov/wcms/vizdata/measles/MeaslesCasesWeekly.json
+```
+
+It follows at most three hops and stops if a `dataUrl` loops back on itself.
+
 ### Formats
 
 `init` detects whether a response is JSON, XML, or HTML and writes the right
@@ -160,7 +180,7 @@ better than a new tool could. Two ways to get a capture:
 - [x] XML and HTML-table record extraction
 - [x] Secret redaction (`--redact`) + env-var substitution on `run`
 - [x] Harvest manifest (source, pagination, row counts, warnings)
-- [ ] Follow a config's `dataUrl` (CDC-style viz endpoints point elsewhere)
+- [x] Follow a config's `dataUrl` (CDC-style viz endpoints point elsewhere)
 - [ ] Auto-suggest an HTML row selector during `--probe`
 - [ ] Type inference for SQLite columns (TEXT-only today)
 

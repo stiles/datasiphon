@@ -64,6 +64,49 @@ export interface BodyAnalysis {
   rowsPath?: string;
   estimatedRows: number;
   recordiness: number;
+  /** A URL/path the response points at for its real data (e.g. CDC viz configs). */
+  dataUrl?: string;
+}
+
+/**
+ * Does this analysis point at a real record array (vs. a config's incidental
+ * metadata array like `series` or `annotations`)? A top-level array or one
+ * under a known data key (`results`, `features`, ...) counts; metadata keys do
+ * not. Used to decide whether a config's `dataUrl` is worth following.
+ */
+export function isLikelyRecordArray(analysis: BodyAnalysis | null): boolean {
+  if (!analysis?.rowsPath || analysis.estimatedRows <= 0) return false;
+  if (analysis.rowsPath === "$") return true;
+  return DATA_KEYS.test(lastKey(analysis.rowsPath));
+}
+
+// Fields that viz/config endpoints use to point at the real data file. CDC's
+// COVE charts use `dataUrl`/`dataFileName`; other tools use similar names.
+const DATA_URL_KEYS = new Set(["dataurl", "datafilename", "data_url", "data_file", "datafile"]);
+
+/** Does a string look like a URL or path we could fetch (not arbitrary text)? */
+function looksLikeFetchablePath(value: string): boolean {
+  const v = value.trim();
+  if (/^https?:\/\//i.test(v)) return true;
+  if (/^\.{0,2}\//.test(v)) return true; // "/x", "./x", "../x"
+  return /\.(json|csv|tsv|xml)(\?|$)/i.test(v);
+}
+
+/**
+ * Find a "data URL" a config object points at, if any. CDC-style visualization
+ * configs return chart metadata with a `dataUrl` field naming the real data
+ * file; following it gets the actual records. Only looks at top-level keys.
+ */
+export function findDataUrl(value: unknown): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const obj = value as Record<string, unknown>;
+  for (const [key, raw] of Object.entries(obj)) {
+    if (!DATA_URL_KEYS.has(key.toLowerCase())) continue;
+    if (typeof raw === "string" && raw.trim() && looksLikeFetchablePath(raw)) {
+      return raw.trim();
+    }
+  }
+  return undefined;
 }
 
 function looksLikeXml(text: string, contentType: string): boolean {
@@ -85,6 +128,7 @@ export function analyzeBody(text: string, contentType = ""): BodyAnalysis | null
         rowsPath: found?.path,
         estimatedRows: found?.length ?? 0,
         recordiness: found?.recordiness ?? 0,
+        dataUrl: findDataUrl(parsed),
       };
     } catch {
       /* fall through */
