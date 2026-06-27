@@ -1,5 +1,6 @@
 import type { CapturedRequest } from "./types.js";
 import { analyzeBody, isLikelyRecordArray, type BodyAnalysis, type BodyFormat } from "./detect.js";
+import { suggestHtmlRows } from "./parse/html.js";
 import { cleanHeaders } from "./recipe.js";
 
 export interface ProbeResult {
@@ -7,6 +8,10 @@ export interface ProbeResult {
   request: CapturedRequest;
   rowsPath?: string;
   format?: BodyFormat;
+  /** Suggested CSS row selector (html responses only). */
+  selector?: string;
+  /** Suggested header-derived field map (html responses only). */
+  fields?: Record<string, string>;
   /** Set when we followed a config's dataUrl: the original (config) URL. */
   followedFrom?: string;
   /** Human-readable notes about what the probe did. */
@@ -119,10 +124,25 @@ export async function probeRequest(
   const chosen = best ?? { request: current, analysis: null };
   // followedFrom only matters if we actually ended up on a followed response.
   const usedFollowed = followedFrom && chosen.request.url !== request.url;
+
+  // For HTML, suggest a row selector (and header fields) from the page itself.
+  let selector: string | undefined;
+  let fields: Record<string, string> | undefined;
+  if (chosen.analysis?.format === "html" && chosen.request.response?.bodyText) {
+    const suggestion = suggestHtmlRows(chosen.request.response.bodyText);
+    if (suggestion) {
+      selector = suggestion.selector;
+      fields = suggestion.fields;
+      notes.push(`suggested row selector "${suggestion.selector}" (${suggestion.note})`);
+    }
+  }
+
   return {
     request: chosen.request,
     rowsPath: chosen.analysis?.rowsPath,
     format: chosen.analysis?.format,
+    selector,
+    fields,
     followedFrom: usedFollowed ? followedFrom : undefined,
     notes,
   };

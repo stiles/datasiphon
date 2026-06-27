@@ -23,6 +23,8 @@ function basenameFromUrl(url: string): string {
 interface BuildOpts {
   rowsPath?: string;
   format?: "json" | "xml" | "html";
+  selector?: string;
+  fields?: Record<string, string>;
   redact?: boolean;
 }
 
@@ -43,7 +45,7 @@ function buildRecipe(
   const format = opts.format ?? "json";
   const rows: Recipe["rows"] =
     format === "html"
-      ? { format, selector: "table tr" }
+      ? { format, selector: opts.selector ?? "table tr", fields: opts.fields }
       : { format, path: opts.rowsPath ?? "$" };
 
   const recipe: Recipe = {
@@ -141,6 +143,8 @@ program
     const shouldProbe =
       request.method === "GET" && (opts.probe === true || (opts.probe !== false && !rowsPath));
     let format: "json" | "xml" | "html" | undefined;
+    let selector: string | undefined;
+    let fields: Record<string, string> | undefined;
     if (shouldProbe) {
       try {
         console.log(`Probing ${request.url} ...`);
@@ -149,6 +153,8 @@ program
         request = probed.request;
         rowsPath = probed.rowsPath ?? rowsPath;
         format = probed.format;
+        selector = probed.selector;
+        fields = probed.fields;
       } catch (err) {
         console.log(`  probe failed (${(err as Error).message}); continuing from the capture.`);
       }
@@ -157,6 +163,8 @@ program
     const { recipe, secrets, envVars, paginationNote } = buildRecipe(request, {
       rowsPath,
       format,
+      selector,
+      fields,
       redact: opts.redact,
     });
     await saveRecipe(opts.out, recipe);
@@ -164,8 +172,15 @@ program
     console.log(`\nWrote ${opts.out}`);
     console.log(`  source:     ${recipe.source.method} ${recipe.source.url}`);
     if (recipe.rows.format === "html") {
+      const suggested = !!selector;
       console.log(`  format:     html`);
-      console.log(`  selector:   ${recipe.rows.selector}  (guessed; edit to target the right rows)`);
+      console.log(
+        `  selector:   ${recipe.rows.selector}  (${suggested ? "suggested from the page; verify it" : "guessed; edit to target the right rows"})`,
+      );
+      if (recipe.rows.fields) {
+        const names = Object.keys(recipe.rows.fields);
+        console.log(`  fields:     ${names.join(", ")}  (from the table header)`);
+      }
     } else {
       console.log(`  format:     ${recipe.rows.format}`);
       console.log(`  rows.path:  ${recipe.rows.path}${rowsPath ? "" : "  (guessed; verify this)"}`);

@@ -10,6 +10,8 @@ export interface Manifest {
   pagesFetched: number;
   rowsCollected: number;
   columns: string[];
+  /** Inferred SQLite affinity per column (INTEGER/REAL/TEXT). */
+  columnTypes?: Record<string, string>;
   outputs: string[];
   /** Anything that needed human attention during the run. */
   warnings: string[];
@@ -22,6 +24,7 @@ export async function writeManifest(
     pagesFetched: number;
     rowsCollected: number;
     columns: string[];
+    columnTypes?: Record<string, string>;
     outputs: string[];
     warnings: string[];
   },
@@ -35,6 +38,7 @@ export async function writeManifest(
     pagesFetched: stats.pagesFetched,
     rowsCollected: stats.rowsCollected,
     columns: stats.columns,
+    columnTypes: stats.columnTypes,
     outputs: stats.outputs,
     warnings: stats.warnings,
   };

@@ -110,9 +110,13 @@ export function findDataUrl(value: unknown): string | undefined {
 }
 
 function looksLikeXml(text: string, contentType: string): boolean {
+  if (/html/i.test(contentType)) return false;
   if (/xml/.test(contentType)) return true;
   const head = text.trimStart().slice(0, 200);
-  return head.startsWith("<?xml") || (/^<[a-zA-Z]/.test(head) && !/^<!doctype html/i.test(head));
+  if (head.startsWith("<?xml")) return true;
+  // An HTML document is markup but not XML for our purposes.
+  if (/^<!doctype html/i.test(head) || /^<html[\s>]/i.test(head)) return false;
+  return /^<[a-zA-Z]/.test(head);
 }
 
 /** Inspect a response body to classify its format and locate a record array. */

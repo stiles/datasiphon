@@ -104,6 +104,11 @@ It follows at most three hops and stops if a `dataUrl` loops back on itself.
   `rows.fields` to map named columns to per-row selectors, or let it fall back
   to table cells (`c1`, `c2`, ...).
 
+For HTML, `--probe` suggests a `rows.selector` by finding the largest data
+table on the page (or, failing that, the most-repeated element). When the table
+has a header row it also pre-fills `rows.fields` from the column headers. The
+suggestion is a starting point: review it before harvesting.
+
 ### Secrets
 
 By default `init` keeps headers like `Authorization` and `Cookie` (often
@@ -156,7 +161,13 @@ node examples/capture.mjs \
 
 A `run` produces `<basename>.csv`, `<basename>.sqlite`, and
 `<basename>.manifest.json`. The manifest records the source, pagination type,
-page and row counts, columns, and any warnings: your reproducibility receipt.
+page and row counts, columns (with their inferred SQLite types), and any
+warnings: your reproducibility receipt.
+
+The SQLite table infers a type per column (`INTEGER`, `REAL`, or `TEXT`) so
+numbers come back as numbers. Codes that only look numeric are kept as text:
+values with a leading zero (ZIP/FIPS codes) and very long digit strings (IDs,
+phone numbers) stay `TEXT` so they aren't silently mangled.
 
 ## How to capture traffic
 
@@ -181,8 +192,8 @@ better than a new tool could. Two ways to get a capture:
 - [x] Secret redaction (`--redact`) + env-var substitution on `run`
 - [x] Harvest manifest (source, pagination, row counts, warnings)
 - [x] Follow a config's `dataUrl` (CDC-style viz endpoints point elsewhere)
-- [ ] Auto-suggest an HTML row selector during `--probe`
-- [ ] Type inference for SQLite columns (TEXT-only today)
+- [x] Auto-suggest an HTML row selector during `--probe`
+- [x] Type inference for SQLite columns (INTEGER/REAL/TEXT)
 
 ## Not in scope
 

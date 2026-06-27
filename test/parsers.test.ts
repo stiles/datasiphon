@@ -4,7 +4,7 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseXml } from "../src/parse/xml.js";
-import { extractHtmlRows } from "../src/parse/html.js";
+import { extractHtmlRows, suggestHtmlRows } from "../src/parse/html.js";
 import { parseHarFile } from "../src/parse/har.js";
 import { resolvePath } from "../src/jsonpath.js";
 
@@ -49,6 +49,68 @@ test("extractHtmlRows captures text for cell-less rows", () => {
   const html = '<ul><li class="row">hello</li></ul>';
   const rows = extractHtmlRows(html, { selector: "li.row" });
   assert.deepEqual(rows, [{ text: "hello" }]);
+});
+
+test("suggestHtmlRows targets a tbody table by id and maps header fields", () => {
+  const html = `<table id="results">
+    <thead><tr><th>State Name</th><th>Cases (2024)</th></tr></thead>
+    <tbody>
+      <tr><td>CA</td><td>10</td></tr>
+      <tr><td>TX</td><td>5</td></tr>
+    </tbody></table>`;
+  const s = suggestHtmlRows(html);
+  assert.equal(s?.selector, "#results tbody tr");
+  assert.equal(s?.rowCount, 2);
+  assert.deepEqual(s?.fields, {
+    state_name: "td:nth-child(1)",
+    cases_2024: "td:nth-child(2)",
+  });
+  // The suggested spec should actually extract the data rows.
+  const rows = extractHtmlRows(html, { selector: s!.selector, fields: s!.fields });
+  assert.deepEqual(rows, [
+    { state_name: "CA", cases_2024: "10" },
+    { state_name: "TX", cases_2024: "5" },
+  ]);
+});
+
+test("suggestHtmlRows uses first class when there is no id", () => {
+  const html = `<table class="data sortable"><tbody>
+    <tr><td>1</td></tr><tr><td>2</td></tr></tbody></table>`;
+  const s = suggestHtmlRows(html);
+  assert.equal(s?.selector, "table.data tbody tr");
+});
+
+test("suggestHtmlRows omits fields when the table has no tbody", () => {
+  const html = `<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr><tr><td>3</td><td>4</td></tr></table>`;
+  const s = suggestHtmlRows(html);
+  assert.equal(s?.selector, "table tr");
+  assert.equal(s?.fields, undefined);
+});
+
+test("suggestHtmlRows picks the largest of multiple tables", () => {
+  const html = `
+    <table id="small"><tbody><tr><td>x</td></tr><tr><td>y</td></tr></tbody></table>
+    <table id="big"><tbody>
+      <tr><td>1</td></tr><tr><td>2</td></tr><tr><td>3</td></tr><tr><td>4</td></tr>
+    </tbody></table>`;
+  const s = suggestHtmlRows(html);
+  assert.equal(s?.selector, "#big tbody tr");
+  assert.equal(s?.rowCount, 4);
+});
+
+test("suggestHtmlRows falls back to a repeated classed element", () => {
+  const html = `<section>
+    <article class="card">a</article>
+    <article class="card">b</article>
+    <article class="card">c</article>
+  </section>`;
+  const s = suggestHtmlRows(html);
+  assert.equal(s?.selector, "article.card");
+  assert.equal(s?.rowCount, 3);
+});
+
+test("suggestHtmlRows returns undefined when nothing repeats", () => {
+  assert.equal(suggestHtmlRows("<p>just a paragraph</p>"), undefined);
 });
 
 test("parseHarFile normalizes entries and lowercases response headers", async () => {

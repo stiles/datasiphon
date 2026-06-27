@@ -91,6 +91,22 @@ test("stops after the follow budget and reports it", async () => {
   assert.ok(result.notes.some((n) => n.includes("follow limit")));
 });
 
+test("suggests an HTML row selector for an html response", async () => {
+  const html = `<html><body><table id="t"><thead><tr><th>Name</th><th>Value</th></tr></thead>
+    <tbody><tr><td>a</td><td>1</td></tr><tr><td>b</td><td>2</td></tr></tbody></table></body></html>`;
+  const fetcher: FetchLike = async () => ({
+    status: 200,
+    text: async () => html,
+    contentType: "text/html",
+    headers: {},
+  });
+  const result = await probeRequest(req("https://site.test/page"), fetcher);
+  assert.equal(result.format, "html");
+  assert.equal(result.selector, "#t tbody tr");
+  assert.deepEqual(result.fields, { name: "td:nth-child(1)", value: "td:nth-child(2)" });
+  assert.ok(result.notes.some((n) => n.includes("suggested row selector")));
+});
+
 test("detects a loop when a dataUrl points back to a fetched URL", async () => {
   const bodies = {
     "https://api.test/a.json": JSON.stringify({ dataUrl: "/b.json" }),

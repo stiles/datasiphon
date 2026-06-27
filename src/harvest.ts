@@ -8,7 +8,7 @@ import { extractHtmlRows } from "./parse/html.js";
 import { parseLinkNext } from "./pagination.js";
 import { flattenRecord, unionColumns, unwrapArcgisFeature, type FlatRow } from "./flatten.js";
 import { writeCsv } from "./output/csv.js";
-import { writeSqlite } from "./output/sqlite.js";
+import { writeSqlite, inferColumnTypes } from "./output/sqlite.js";
 import { writeManifest } from "./output/manifest.js";
 
 interface PageState {
@@ -271,6 +271,7 @@ export async function runHarvest(
         .map((l) => JSON.parse(l) as FlatRow)
     : [];
   const columns = unionColumns(allRows);
+  const columnTypes = inferColumnTypes(columns, allRows);
   const outputs: string[] = [];
 
   if (recipe.output.formats.includes("csv")) {
@@ -289,6 +290,7 @@ export async function runHarvest(
     pagesFetched: state.pagesFetched,
     rowsCollected: allRows.length,
     columns,
+    columnTypes,
     outputs,
     warnings,
   });
