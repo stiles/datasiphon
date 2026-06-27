@@ -10,3 +10,6 @@ dist/
 *.manifest.json
 *.local.har
 *.local.curl
+
+# Personal/local notes (not shared)
+.cursor/docs/
