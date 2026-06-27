@@ -1,0 +1,25 @@
+# Recipe for the bundled mock server (examples/mock-server.mjs).
+# Start the server first, then: datasiphon run examples/local-recipe.yaml
+description: Test harvest against the bundled mock server
+source:
+  url: http://localhost:8787/api/v1/inspections?offset=0&per_page=2
+  method: GET
+  headers:
+    Accept: application/json
+pagination:
+  type: offset
+  param: offset
+  size: 2
+  sizeParam: per_page
+  start: 0
+  maxPages: 100
+rows:
+  path: $.results
+politeness:
+  delayMs: 0
+  maxRetries: 2
+output:
+  formats:
+    - csv
+    - sqlite
+  basename: inspections

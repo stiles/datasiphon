@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.log
+
+# Harvest output and sidecar state (recipe.yaml is meant to be committed/shared)
+*.sqlite
+*.csv
+*.rows.jsonl
+*.state.json
+*.manifest.json
+*.local.har
+*.local.curl
